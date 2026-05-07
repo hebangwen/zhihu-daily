@@ -208,15 +208,18 @@
   .list-layout .story-card-body h3 { font-size: 16px; -webkit-line-clamp: 2; }
   .list-layout .story-card-body .hint { margin-top: 8px; }
 
-  /* ============= LaTeX SVG 暗色模式修复 ============= */
+  /* ============= 公式/数学内容 暗色模式修复 ============= */
+  /* 知乎公式图: zhihu.com/equation?tex=... */
+  .content img[src*="equation"],
+  .content img[src*="tex"],
   .content img[src*=".svg"],
   .content img[src*="svg"],
-  .content svg {
+  .content svg,
+  .content math {
     filter: var(--latex-filter);
     transition: filter var(--transition);
   }
-  /* 如果是图片里的内联 SVG，去掉背景色避免黑块 */
-  .content img[src*="svg"] {
+  .content img[src*="equation"] {
     background: transparent !important;
   }
 
