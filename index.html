@@ -219,7 +219,11 @@
     filter: var(--latex-filter);
     transition: filter var(--transition);
   }
+  /* 公式图片保持内联，不换行 */
   .content img[src*="equation"] {
+    display: inline-block !important;
+    vertical-align: middle;
+    margin: 2px !important;
     background: transparent !important;
   }
 
