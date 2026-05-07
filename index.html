@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知乎日报 · 每日精选</title>
+<script>
+  // ========== 部署配置 ==========
+  // 本地开发: 用 server.mjs 代理
+  // GitHub Pages + CF Worker: 改成你的 Worker 地址
+  window.API_BASE = window.API_BASE || '/api';
+  // 👇 生产环境: CF Worker 代理
+  window.API_BASE = 'https://zhihu-daily-proxy.hebangwen.workers.dev';
+</script>
+<style>
+  /* ============= Reset & Variables ============= */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f4f6;
+    --surface: #ffffff;
+    --surface-hover: #f0f0f2;
+    --text: #1a1a2e;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border: #e8e8ec;
+    --accent: #0066ff;
+    --accent-hover: #0052cc;
+    --accent-light: #e8f0ff;
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --nav-height: 64px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  }
+  [data-theme="dark"] {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-hover: #252540;
+    --text: #e4e4ed;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: #2a2a45;
+    --accent: #5599ff;
+    --accent-hover: #77bbff;
+    --accent-light: #1a2a4e;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    transition: background var(--transition), color var(--transition);
+    padding-top: var(--nav-height);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  img { max-width: 100%; display: block; }
+
+  /* ============= Nav ============= */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: var(--nav-height);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px;
+    backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    transition: background var(--transition), border var(--transition);
+  }
+  .nav-title {
+    font-size: 18px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-title .logo { font-size: 24px; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle {
+    background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 6px 12px; cursor: pointer; font-size: 16px;
+    color: var(--text); transition: all var(--transition);
+  }
+  .theme-toggle:hover { background: var(--surface-hover); }
+
+  /* ============= Date Navigation ============= */
+  .date-nav {
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; padding: 16px 24px; position: sticky; top: var(--nav-height);
+    z-index: 50; background: var(--bg); transition: background var(--transition);
+  }
+  .date-nav button {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 16px; cursor: pointer;
+    color: var(--text); font-size: 14px; font-weight: 500;
+    transition: all var(--transition);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .date-nav button:hover:not(:disabled) {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .date-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .date-label {
+    font-size: 16px; font-weight: 600; min-width: 140px; text-align: center;
+  }
+  .date-label .weekday { color: var(--text-secondary); font-weight: 400; font-size: 14px; }
+
+  /* ============= Hero Carousel ============= */
+  .hero { position: relative; overflow: hidden; height: 400px; }
+  .hero-track {
+    display: flex; transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    height: 100%;
+  }
+  .hero-slide {
+    min-width: 100%; height: 100%; position: relative;
+    cursor: pointer; overflow: hidden;
+  }
+  .hero-slide img {
+    width: 100%; height: 100%; object-fit: cover;
+    transition: transform 0.6s ease;
+  }
+  .hero-slide:hover img { transform: scale(1.05); }
+  .hero-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 60px 40px 40px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    color: #fff;
+  }
+  .hero-overlay h2 {
+    font-size: 26px; font-weight: 700; line-height: 1.3; margin-bottom: 6px;
+  }
+  .hero-overlay .hint {
+    font-size: 14px; opacity: 0.8;
+  }
+  .hero-dots {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px;
+  }
+  .hero-dots .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4);
+    cursor: pointer; transition: all var(--transition);
+  }
+  .hero-dots .dot.active { background: #fff; width: 24px; border-radius: 4px; }
+
+  /* ============= Stories Grid ============= */
+  .container { max-width: 1200px; margin: 0 auto; padding: 16px 20px 40px; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-header h2 { font-size: 18px; font-weight: 600; }
+  .story-count { font-size: 13px; color: var(--text-secondary); }
+  .stories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .stories-grid.list-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* ============= Story Card ============= */
+  .story-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all var(--transition);
+    box-shadow: var(--shadow);
+  }
+  .story-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--accent);
+  }
+  .story-card-img {
+    width: 100%; height: 180px; object-fit: cover;
+    background: var(--border);
+    transition: transform 0.4s ease;
+  }
+  .story-card:hover .story-card-img { transform: scale(1.03); }
+  .story-card-body { padding: 14px 16px 16px; }
+  .story-card-body h3 {
+    font-size: 15px; font-weight: 600; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .story-card-body .hint {
+    font-size: 12px; color: var(--text-secondary); margin-top: 6px;
+  }
+
+  /* list layout card */
+  .list-layout .story-card {
+    display: flex; height: 120px;
+  }
+  .list-layout .story-card-img {
+    width: 160px; height: 100%; min-height: auto;
+    flex-shrink: 0;
+  }
+  .list-layout .story-card-body {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+  }
+  .list-layout .story-card-body h3 { font-size: 16px; -webkit-line-clamp: 2; }
+  .list-layout .story-card-body .hint { margin-top: 8px; }
+
+  /* ============= Detail Modal ============= */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-overlay.active { display: flex; align-items: flex-start; justify-content: center; }
+  .modal {
+    background: var(--surface);
+    width: 100%; max-width: 720px;
+    max-height: 90vh; overflow-y: auto;
+    margin: 5vh 16px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.3s ease;
+    position: relative;
+  }
+  .modal-close {
+    position: sticky; top: 0; float: right;
+    background: var(--surface);
+    border: none; font-size: 24px; cursor: pointer;
+    padding: 12px 16px; color: var(--text);
+    z-index: 10;
+    opacity: 0.7; transition: opacity var(--transition);
+  }
+  .modal-close:hover { opacity: 1; }
+  .modal-img {
+    width: 100%; max-height: 360px; object-fit: cover;
+  }
+  .modal-body { padding: 24px 28px 32px; }
+  .modal-body h1 {
+    font-size: 24px; font-weight: 700; line-height: 1.35; margin-bottom: 8px;
+  }
+  .modal-meta {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;
+  }
+  .modal-body .content {
+    font-size: 15px; line-height: 1.8;
+    color: var(--text);
+    word-wrap: break-word;
+  }
+  .modal-body .content p { margin-bottom: 1em; }
+  .modal-body .content img {
+    border-radius: var(--radius-sm);
+    margin: 12px auto;
+  }
+  .modal-body .content blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 16px; margin: 12px 0;
+    color: var(--text-secondary);
+  }
+  .loading-spinner {
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px; color: var(--text-secondary); gap: 8px;
+  }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  /* ============= Animations ============= */
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .story-card { animation: slideUp 0.3s ease backwards; }
+
+  /* ============= Responsive ============= */
+  @media (max-width: 640px) {
+    .hero { height: 280px; }
+    .hero-overlay { padding: 40px 20px 20px; }
+    .hero-overlay h2 { font-size: 20px; }
+    .list-layout .story-card { height: auto; flex-direction: column; }
+    .list-layout .story-card-img { width: 100%; height: 160px; }
+    .modal-body { padding: 16px; }
+    .modal-body h1 { font-size: 20px; }
+    .nav { padding: 0 16px; }
+  }
+
+  /* ============= Scrollbar ============= */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-title">
+    <span class="logo">📰</span>
+    <span>知乎日报</span>
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" onclick="toggleTheme()" title="切换主题" id="themeBtn">🌙</button>
+  </div>
+</nav>
+
+<!-- Date Navigation -->
+<div class="date-nav">
+  <button onclick="navigateDate(-1)" id="prevBtn">← 前一天</button>
+  <div class="date-label" id="dateLabel">加载中...</div>
+  <button onclick="navigateDate(1)" id="nextBtn">后一天 →</button>
+</div>
+
+<!-- Hero / Top Stories -->
+<section class="hero" id="hero">
+  <div class="hero-track" id="heroTrack"></div>
+  <div class="hero-dots" id="heroDots"></div>
+</section>
+
+<!-- Main Content -->
+<div class="container">
+  <div class="section-header">
+    <h2>📋 今日精选</h2>
+    <span class="story-count" id="storyCount"></span>
+  </div>
+  <div class="view-controls" style="display:flex;gap:8px;margin-bottom:12px;">
+    <button class="theme-toggle" onclick="toggleLayout()" id="layoutBtn" style="font-size:13px;">⊞ 网格视图</button>
+  </div>
+  <div class="stories-grid" id="storiesGrid"></div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalContent">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <span>加载中...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================== State ========================
+const API = window.API_BASE;
+let currentDate = null;       // YYYYMMDD string (显示日期, 不是 API 返回日期)
+let requestedDate = null;     // YYYYMMDD string (API 请求的日期)
+let currentData = null;       // latest / before response
+let dateStack = [];           // 浏览历史栈 (前进用)
+let layoutMode = 'grid';      // 'grid' | 'list'
+let heroInterval = null;
+let heroIndex = 0;
+const TODAY = ymdStr(new Date());
+
+// ======================== Helpers ========================
+function parseDate(ymd) {
+  if (!ymd || ymd.length !== 8) return new Date();
+  return new Date(`${ymd.slice(0,4)}-${ymd.slice(4,6)}-${ymd.slice(6,8)}`);
+}
+function formatDisplay(ymd) {
+  const d = parseDate(ymd);
+  const days = ['日','一','二','三','四','五','六'];
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${days[d.getDay()]}`;
+}
+function ymdStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const day = String(date.getDate()).padStart(2,'0');
+  return `${y}${m}${day}`;
+}
+function ymdAdd(ymd, delta) {
+  const d = parseDate(ymd);
+  d.setDate(d.getDate() + delta);
+  return ymdStr(d);
+}
+
+// ======================== API ========================
+async function apiFetch(path) {
+  const res = await fetch(`${API}${path}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function getLatest() {
+  return apiFetch('/news/latest');
+}
+function getBefore(date) {
+  return apiFetch(`/news/before/${date}`);
+}
+function getDetail(id) {
+  return apiFetch(`/news/${id}`);
+}
+
+// ======================== Render ========================
+function renderHero(stories) {
+  const track = document.getElementById('heroTrack');
+  const dots = document.getElementById('heroDots');
+  const heroSection = document.getElementById('hero');
+
+  if (!stories || stories.length === 0) {
+    heroSection.style.display = 'none';
+    return;
+  }
+  heroSection.style.display = 'block';
+
+  track.innerHTML = stories.map((s, i) => `
+    <div class="hero-slide" onclick="openDetail(${s.id})">
+      <img src="${s.image}" alt="${s.title}" loading="${i === 0 ? 'eager' : 'lazy'}">
+      <div class="hero-overlay">
+        <h2>${s.title}</h2>
+        <div class="hint">${s.hint || ''}</div>
+      </div>
+    </div>
+  `).join('');
+
+  dots.innerHTML = stories.map((_, i) =>
+    `<div class="dot ${i === 0 ? 'active' : ''}" onclick="goHero(${i})"></div>`
+  ).join('');
+
+  heroIndex = 0;
+  startHeroAuto();
+}
+
+function startHeroAuto() {
+  if (heroInterval) clearInterval(heroInterval);
+  const slides = document.querySelectorAll('.hero-slide');
+  if (slides.length <= 1) return;
+  heroInterval = setInterval(() => {
+    const next = (heroIndex + 1) % slides.length;
+    goHero(next);
+  }, 5000);
+}
+
+function goHero(idx) {
+  heroIndex = idx;
+  const track = document.getElementById('heroTrack');
+  track.style.transform = `translateX(-${idx * 100}%)`;
+  document.querySelectorAll('.hero-dots .dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+}
+
+function renderStories(stories) {
+  const grid = document.getElementById('storiesGrid');
+  const count = document.getElementById('storyCount');
+  count.textContent = `共 ${stories.length} 篇`;
+
+  grid.className = `stories-grid ${layoutMode === 'list' ? 'list-layout' : ''}`;
+
+  grid.innerHTML = stories.map((s, i) => `
+    <div class="story-card" onclick="openDetail(${s.id})" style="animation-delay:${i * 40}ms">
+      <img class="story-card-img" src="${s.images?.[0] || s.image || ''}"
+           alt="${s.title}" loading="lazy"
+           onerror="this.style.display='none'">
+      <div class="story-card-body">
+        <h3>${s.title}</h3>
+        <div class="hint">${s.hint || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderDate() {
+  document.getElementById('dateLabel').innerHTML =
+    `${formatDisplay(currentDate)} <span class="weekday"></span>`;
+  // 前进按钮: 有历史栈才能前进, 且不能超过今天
+  document.getElementById('nextBtn').disabled = dateStack.length === 0 || currentDate >= TODAY;
+  // 后退按钮: 不能超过 2013 年 (知乎日报上线)
+  document.getElementById('prevBtn').disabled = currentDate <= '20130501';
+}
+
+// ======================== Detail ========================
+async function openDetail(id) {
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  content.innerHTML = `<div class="loading-spinner"><div class="spinner"></div><span>加载中...</span></div>`;
+
+  try {
+    const d = await getDetail(id);
+    const body = (d.body || '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<a[^>]*href="([^"]+)"[^>]*>/gi, (m, href) => {
+        if (href.startsWith('http')) return m;
+        return m.replace(href, `https://daily.zhihu.com${href.startsWith('/') ? '' : '/'}${href}`);
+      });
+    const imgUrl = d.image || (d.images && d.images[0]) || '';
+
+    content.innerHTML = `
+      ${imgUrl ? `<img class="modal-img" src="${imgUrl}" alt="${d.title}" onerror="this.style.display='none'">` : ''}
+      <div class="modal-body">
+        <h1>${d.title}</h1>
+        <div class="modal-meta">${d.displayStyle?.first_shared_time || '知乎日报'}</div>
+        <div class="content">${body}</div>
+      </div>
+    `;
+  } catch (e) {
+    content.innerHTML = `<div class="modal-body"><p style="color:var(--text-secondary);text-align:center;padding:40px;">加载失败：${e.message}</p></div>`;
+  }
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modalOverlay')) return;
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// ESC to close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.getElementById('modalOverlay').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+});
+
+// ======================== Load Data ========================
+async function loadDate(dateStr) {
+  requestedDate = dateStr;
+  currentDate = dateStr;
+  renderDate();
+
+  const grid = document.getElementById('storiesGrid');
+  grid.innerHTML = `<div class="loading-spinner"><div class="spinner"></div><span>加载中...</span></div>`;
+  document.getElementById('hero').style.display = 'none';
+
+  try {
+    // latest 返回当天数据, before/{date} 返回 date-1 的数据
+    // 所以要看某天的新闻，需要请求它的后一天
+    const data = dateStr === TODAY ? await getLatest() : await getBefore(ymdAdd(dateStr, 1));
+
+    // before API 可能返回前一天日期，但我们要保持 currentDate 不变
+    currentData = data;
+    renderDate();
+
+    // top_stories 只在 latest 接口有
+    if (data.top_stories && dateStr === TODAY) {
+      renderHero(data.top_stories);
+    }
+
+    renderStories(data.stories);
+  } catch (e) {
+    grid.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-secondary);">
+      <p style="font-size:32px;margin-bottom:12px;">😅</p>
+      <p>加载失败：${e.message}</p>
+    </div>`;
+  }
+}
+
+async function navigateDate(delta) {
+  if (delta === -1) {
+    // 后退: 推入历史栈, 加载前一天
+    dateStack.push(currentDate);
+    await loadDate(ymdAdd(currentDate, -1));
+  } else if (delta === 1) {
+    // 前进: 从历史栈弹出
+    if (dateStack.length > 0) {
+      const prev = dateStack.pop();
+      await loadDate(prev);
+    }
+  }
+}
+
+// ======================== Layout ========================
+function toggleLayout() {
+  layoutMode = layoutMode === 'grid' ? 'list' : 'grid';
+  document.getElementById('layoutBtn').textContent =
+    layoutMode === 'grid' ? '⊞ 网格视图' : '⊟ 列表视图';
+  if (currentData) renderStories(currentData.stories);
+}
+
+// ======================== Theme ========================
+const savedTheme = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
+document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
+// ======================== Init ========================
+loadDate(ymdStr(new Date()));
+</script>
+</body>
+</html>
