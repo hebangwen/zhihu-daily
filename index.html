@@ -16,6 +16,7 @@
   /* ============= Reset & Variables ============= */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
+    --latex-filter: none; /* light mode: no filter */
     --bg: #f4f4f6;
     --surface: #ffffff;
     --surface-hover: #f0f0f2;
@@ -35,6 +36,7 @@
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
   }
   [data-theme="dark"] {
+    --latex-filter: invert(0.88) hue-rotate(180deg);
     --bg: #0f0f1a;
     --surface: #1a1a2e;
     --surface-hover: #252540;
@@ -205,6 +207,18 @@
   }
   .list-layout .story-card-body h3 { font-size: 16px; -webkit-line-clamp: 2; }
   .list-layout .story-card-body .hint { margin-top: 8px; }
+
+  /* ============= LaTeX SVG 暗色模式修复 ============= */
+  .content img[src*=".svg"],
+  .content img[src*="svg"],
+  .content svg {
+    filter: var(--latex-filter);
+    transition: filter var(--transition);
+  }
+  /* 如果是图片里的内联 SVG，去掉背景色避免黑块 */
+  .content img[src*="svg"] {
+    background: transparent !important;
+  }
 
   /* ============= Detail Modal ============= */
   .modal-overlay {
